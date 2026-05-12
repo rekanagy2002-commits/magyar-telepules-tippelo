@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magyar Település Tippelő - Játék</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #f3f4f6;
+            overflow-x: hidden;
+        }
+        
+        button, .btn-primary, .btn-secondary {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+            cursor: pointer;
+        }
+        
+        .hungarian-flag-bar {
+            background: linear-gradient(to right, #CD212A 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #436F4D 66.66%);
+            height: 6px;
+        }
+        
+        #map {
+            height: 60vh;
+            width: 100%;
+            border-radius: 12px;
+            z-index: 1;
+        }
+        
+        @media (min-width: 768px) {
+            #map {
+                height: 70vh;
+            }
+        }
+        
+        #map {
+            touch-action: none;
+            -webkit-touch-callout: none;
+        }
+        
+        .leaflet-container {
+            touch-action: none;
+        }
+        
+        .player-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: white;
+        }
+        
+        .guess-marker {
+            background: #CD212A;
+        }
+        
+        .other-marker {
+            background: #436F4D;
+        }
+        
+        .actual-marker {
+            background: #FFD700;
+            border-color: #333;
+        }
+        
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #CD212A 0%, #a01920 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(205, 33, 42, 0.3);
+        }
+        
+        .btn-primary:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #436F4D 0%, #365f3f 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(67, 111, 77, 0.3);
+        }
+        
+        .score-card {
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            border-radius: 12px;
+            padding: 12px;
+            border-left: 4px solid #CD212A;
+        }
+        
+        .pulse-animation {
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes fadeInUp {
+            from { 
+                opacity: 0; 
+                transform: translate(-50%, 20px); 
+            }
+            to { 
+                opacity: 1; 
+                transform: translate(-50%, 0); 
+            }
+        }
+        
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+        
+        .leaderboard-item {
+            transition: all 0.3s ease;
+        }
+        
+        .leaderboard-item:hover {
+            transform: translateX(5px);
+            background: rgba(205, 33, 42, 0.05);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="glass-panel sticky top-0 z-50 mx-4 mt-4">
+        <div class="hungarian-flag-bar rounded-t-2xl"></div>
+        <div class="p-4">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-xl font-bold text-gray-800">Magyar Település Tippelő</h1>
+                    <p class="text-sm text-gray-600">Szoba: <span id="roomCode" class="font-mono font-bold text-red-600"></span></p>
+                </div>
+                <div class="text-right">
+                    <div class="text-sm text-gray-600">Kör</div>
+                    <div class="text-2xl font-bold text-gray-800"><span id="currentRound">0</span>/10</div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-6">
+        <div class="grid lg:grid-cols-3 gap-6">
+            <!-- Left Panel - Game Info -->
+            <div class="lg:col-span-1 space-y-4">
+                <!-- Current Town -->
+                <div class="glass-panel p-6 text-center">
+                    <div class="text-sm text-gray-600 mb-2">Aktuális település</div>
+                    <h2 id="townName" class="text-3xl font-bold text-gray-800 mb-4 pulse-animation">Betöltés...</h2>
+                    <p class="text-sm text-gray-600">Jelöld meg a térképen hol szerinted van!</p>
+                </div>
+                
+                <!-- Tipp utasítás -->
+                <div id="tapInstruction" class="glass-panel p-4 text-center" style="display: none;">
+                    <div class="flex items-center justify-center gap-2 text-green-600 font-medium">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"></path>
+                        </svg>
+                        <span>Koppints a térképre a tipphez!</span>
+                    </div>
+                </div>
+                
+                <!-- Start Game Button -->
+                <div id="startGameSection" class="glass-panel p-4 text-center" style="display: none;">
+                    <p class="text-gray-600 mb-3">Ha mindenki csatlakozott, indítsátok el a játékot!</p>
+                    <button onclick="startGame()" class="btn-primary w-full py-3 px-4 rounded-xl text-white font-semibold flex items-center justify-center gap-2 mb-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Játék indítása
+                    </button>
+                    <button onclick="refreshGame()" class="w-full py-2 px-4 rounded-xl border-2 border-gray-300 text-gray-600 text-sm hover:bg-gray-50 transition">
+                        Frissítés
+                    </button>
+                </div>
+                
+                <!-- Waiting Message -->
+                <div id="waitingMessage" class="glass-panel p-4 text-center" style="display: none;">
+                    <div class="flex items-center justify-center gap-2 text-gray-600 mb-3">
+                        <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span id="waitingText">Várakozás a többiekre...</span>
+                    </div>
+                    <button id="showResultsBtn" onclick="manualShowResults()" class="btn-secondary w-full py-2 px-4 rounded-lg text-white font-semibold" style="display: none;">
+                        Eredmények megtekintése
+                    </button>
+                </div>
+                
+                <!-- Players List -->
+                <div class="glass-panel p-4">
+                    <h3 class="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        Játékosok
+                    </h3>
+                    <div id="playersList" class="space-y-2">
+                        <!-- Players will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Panel - Map -->
+            <div class="lg:col-span-2">
+                <div class="glass-panel p-4">
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- Result Modal -->
+    <div id="resultModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0"></div>
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-lg p-6 fade-in relative z-10">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Eredmény</h2>
+                    <p id="resultTownName" class="text-lg text-gray-600"></p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="score-card text-center">
+                        <div class="text-sm text-gray-600 mb-1">Távolság</div>
+                        <div id="resultDistance" class="text-2xl font-bold text-gray-800"></div>
+                    </div>
+                    <div class="score-card text-center" style="border-left-color: #436F4D;">
+                        <div class="text-sm text-gray-600 mb-1">Pont</div>
+                        <div id="resultPoints" class="text-2xl font-bold text-red-600"></div>
+                    </div>
+                </div>
+                
+                <div id="allGuesses" class="mb-6 space-y-2 max-h-48 overflow-y-auto">
+                    <!-- All players' guesses will be shown here -->
+                </div>
+                
+                <button id="nextRoundBtn" onclick="nextRound()" class="btn-secondary w-full py-4 px-6 rounded-xl text-white font-semibold text-lg">
+                    Következő település
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Game Over Modal -->
+    <div id="gameOverModal" class="fixed inset-0 z-50 hidden">
+        <div class="modal-overlay absolute inset-0"></div>
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-lg p-6 fade-in relative z-10">
+                <div class="text-center mb-6">
+                    <div class="inline-block p-4 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-600 mb-4">
+                        <svg class="w-12 h-12 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1.323l3.954 1.582 1.599-.8a1 1 0 01.894 1.79l-1.233.616 1.738 5.42a1 1 0 01-.285 1.05A3.989 3.989 0 0115 15a3.989 3.989 0 01-2.667-1.019 1 1 0 01-.633-.24l-1.737-5.421-1.699.85a1 1 0 01-.894-1.79l1.233-.616-1.738-5.42a1 1 0 01.285-1.05A3.989 3.989 0 015 5a3.989 3.989 0 012.667 1.019 1 1 0 01.633.24l1.737 5.421 1.699-.85a1 1 0 01.894 1.79l-1.233.616L10.882 4.323V3a1 1 0 011-1zM5 8.754a.75.75 0 00-.469.707l.374 3.166.351.351A2.25 2.25 0 007.5 14.25h5a2.25 2.25 0 001.744-.822l.351-.351.374-3.166a.75.75 0 00-.469-.707l-3.092-1.236-.804 2.68a1 1 0 01-1.791 0l-.804-2.68L5 8.754z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-800 mb-2">Játék vége!</h2>
+                    <p class="text-gray-600">Gratulálunk minden játékosnak!</p>
+                </div>
+                
+                <div id="finalScores" class="space-y-3 mb-6">
+                    <!-- Final scores will be shown here -->
+                </div>
+                
+                <div class="space-y-3">
+                    <button onclick="location.href='/'" class="btn-primary w-full py-4 px-6 rounded-xl text-white font-semibold text-lg">
+                        Új játék
+                    </button>
+                    <button onclick="shareResults()" class="w-full py-3 px-6 rounded-xl border-2 border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition">
+                        Eredmény megosztása
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Name Input Modal (for room creator) -->
+    <div id="nameModal" class="fixed inset-0 z-50">
+        <div class="modal-overlay absolute inset-0"></div>
+        <div class="relative min-h-screen flex items-center justify-center p-4">
+            <div class="glass-panel w-full max-w-md p-6 fade-in relative z-10">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Üdvözlünk!</h2>
+                    <p class="text-gray-600">Add meg a neved a játékhoz</p>
+                </div>
+                
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Játékos név</label>
+                        <input type="text" id="newPlayerName" placeholder="Add meg a neved" 
+                               class="w-full px-4 py-3 rounded-xl border-2 border-gray-300 focus:border-red-500 focus:outline-none text-lg text-center"
+                               onkeypress="if(event.key==='Enter') submitName()">
+                    </div>
+                    
+                    <button onclick="submitName()" class="btn-primary w-full py-4 px-6 rounded-xl text-white font-semibold text-lg">
+                        Játék indítása
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/game.js"></script>
+</body>
+</html>

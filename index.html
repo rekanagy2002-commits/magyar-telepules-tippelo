@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Magyar Település Tippelő</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .hungarian-flag {
+            background: linear-gradient(to bottom, #CD212A 33.33%, #FFFFFF 33.33%, #FFFFFF 66.66%, #436F4D 66.66%);
+        }
+        
+        .glass-card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #CD212A 0%, #a01920 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(205, 33, 42, 0.3);
+        }
+        
+        .btn-secondary {
+            background: linear-gradient(135deg, #436F4D 0%, #365f3f 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(67, 111, 77, 0.3);
+        }
+        
+        .input-field {
+            transition: all 0.3s ease;
+            border: 2px solid #e5e7eb;
+        }
+        
+        .input-field:focus {
+            border-color: #CD212A;
+            box-shadow: 0 0 0 3px rgba(205, 33, 42, 0.1);
+            outline: none;
+        }
+        
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .animate-fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md p-8 animate-fade-in-up">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="hungarian-flag h-2 w-full rounded-full mb-6"></div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Magyar Település Tippelő</h1>
+            <p class="text-gray-600">Tippeld meg hol vannak a magyar települések!</p>
+        </div>
+        
+        <!-- Create Room Section -->
+        <div class="mb-8">
+            <button onclick="createRoom()" class="btn-primary w-full py-4 px-6 rounded-xl text-white font-semibold text-lg flex items-center justify-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                </svg>
+                Új játék létrehozása
+            </button>
+        </div>
+        
+        <!-- Divider -->
+        <div class="relative mb-8">
+            <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-gray-300"></div>
+            </div>
+            <div class="relative flex justify-center">
+                <span class="px-4 bg-white text-gray-500 text-sm">vagy csatlakozz egyhez</span>
+            </div>
+        </div>
+        
+        <!-- Join Room Section -->
+        <div class="space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Szoba kód</label>
+                <input type="text" id="roomCode" placeholder="Pl.: ABC123" 
+                       class="input-field w-full px-4 py-3 rounded-xl text-lg text-center uppercase tracking-widest font-mono">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Játékos név</label>
+                <input type="text" id="playerName" placeholder="Add meg a neved" 
+                       class="input-field w-full px-4 py-3 rounded-xl text-lg">
+            </div>
+            
+            <button onclick="joinRoom()" class="btn-secondary w-full py-4 px-6 rounded-xl text-white font-semibold text-lg flex items-center justify-center gap-2">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1"></path>
+                </svg>
+                Csatlakozás
+            </button>
+        </div>
+        
+        <!-- Instructions -->
+        <div class="mt-8 p-4 bg-gray-50 rounded-xl">
+            <h3 class="font-semibold text-gray-800 mb-2 flex items-center gap-2">
+                <svg class="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                </svg>
+                Hogyan játssz?
+            </h3>
+            <ul class="text-sm text-gray-600 space-y-1">
+                <li>• Hozz létre egy új játékot vagy csatlakozz egyhez</li>
+                <li>• 10 település fog megjelenni sorban</li>
+                <li>• Jelöld meg a térképen hol szerinted van</li>
+                <li>• Aki a legközelebb tippel, az nyer!</li>
+            </ul>
+        </div>
+    </div>
+    
+    <script>
+        // Szoba létrehozása
+        async function createRoom() {
+            try {
+                const response = await fetch('/api/rooms', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const data = await response.json();
+                
+                if (data.roomId) {
+                    // Átirányítás a játék oldalra
+                    window.location.href = `/game.html?room=${data.roomId}`;
+                } else {
+                    alert('Hiba történt a szoba létrehozásakor');
+                }
+            } catch (error) {
+                console.error('Hiba:', error);
+                alert('Hiba történt a szoba létrehozásakor');
+            }
+        }
+        
+        // Szobához csatlakozás
+        async function joinRoom() {
+            const roomCode = document.getElementById('roomCode').value.trim().toUpperCase();
+            const playerName = document.getElementById('playerName').value.trim();
+            
+            if (!roomCode) {
+                alert('Kérlek add meg a szoba kódot!');
+                return;
+            }
+            
+            if (!playerName) {
+                alert('Kérlek add meg a neved!');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/rooms/${roomCode}/join`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ playerName })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Mentés localStorage-ba
+                    localStorage.setItem('playerId', data.playerId);
+                    localStorage.setItem('playerName', data.playerName);
+                    
+                    // Átirányítás a játék oldalra
+                    window.location.href = `/game.html?room=${roomCode}`;
+                } else {
+                    alert(data.error || 'Hiba történt a csatlakozáskor');
+                }
+            } catch (error) {
+                console.error('Hiba:', error);
+                alert('Hiba történt a csatlakozáskor');
+            }
+        }
+        
+        // Enter billentyű kezelése
+        document.getElementById('roomCode').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.getElementById('playerName').focus();
+            }
+        });
+        
+        document.getElementById('playerName').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                joinRoom();
+            }
+        });
+    </script>
+</body>
+</html>
