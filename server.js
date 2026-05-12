@@ -13,23 +13,10 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 // SQLite adatbázis inicializálása
-// Render.com-on a /data mappa persistens, helyben pedig a gyökérben van
-const fs = require('fs');
-const dbPath = process.env.RENDER_DISK_PATH || '/data/database.sqlite';
-
-// Ellenőrizzük, hogy a /data mappa létezik-e (Render.com)
-let finalDbPath = './database.sqlite';
-try {
-  if (fs.existsSync('/data')) {
-    finalDbPath = dbPath;
-    console.log('Render.com /data mappa elérhető');
-  }
-} catch (e) {
-  // Helyi futtatás, használjuk az alapértelmezettet
-}
-
-console.log('Adatbázis elérési út:', finalDbPath);
-const db = new sqlite3.Database(finalDbPath, (err) => {
+// Railway.app-n és helyben is működik automatikusan
+const dbPath = './database.sqlite';
+console.log('Adatbázis elérési út:', dbPath);
+const db = new sqlite3.Database(dbPath, (err) => {
   if (err) {
     console.error('Adatbázis hiba:', err);
   } else {
